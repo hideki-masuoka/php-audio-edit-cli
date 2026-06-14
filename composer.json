@@ -1,0 +1,19 @@
+{
+    "name": "hansendo/php-audio-edit-cli",
+    "description": "Audio editing CLI tool using FrankenPHP and FFmpeg",
+    "type": "project",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    },
+    "require": {
+        "php": ">=8.2",
+        "symfony/console": "^7.0",
+        "symfony/process": "^7.0"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
