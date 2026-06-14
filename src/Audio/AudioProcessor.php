@@ -25,7 +25,10 @@ class AudioProcessor
         string $outputFile,
         bool $normalize,
         float $targetDb,
-        bool $noiseReduction
+        bool $noiseReduction,
+        ?int $compressionLevel = null,
+        ?int $sampleRate = null,
+        ?int $bitDepth = null
     ): Process {
         // Ensure input file exists
         if (!file_exists($inputFile)) {
@@ -61,6 +64,24 @@ class AudioProcessor
         if (!empty($filters)) {
             $cmd[] = '-af';
             $cmd[] = implode(',', $filters); // Combine filters sequentially
+        }
+
+        // Add FLAC compression level if specified
+        if ($compressionLevel !== null) {
+            $cmd[] = '-compression_level';
+            $cmd[] = (string) $compressionLevel;
+        }
+
+        // Add sample rate if specified
+        if ($sampleRate !== null) {
+            $cmd[] = '-ar';
+            $cmd[] = (string) $sampleRate;
+        }
+
+        // Add bit depth if specified (16-bit or 24-bit)
+        if ($bitDepth !== null) {
+            $cmd[] = '-sample_fmt';
+            $cmd[] = $bitDepth === 24 ? 's32' : 's16';
         }
 
         // Output file

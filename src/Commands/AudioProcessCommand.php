@@ -24,7 +24,10 @@ class AudioProcessCommand extends Command
             ->addOption('target-db', 't', InputOption::VALUE_REQUIRED, 'Target loudness in LUFS/dB', '-14.0')
             ->addOption('noise-reduction', 'r', InputOption::VALUE_NONE, 'Enable noise reduction')
             ->addOption('output-dir', 'o', InputOption::VALUE_REQUIRED, 'Directory to save processed files (defaults to same directory as input)')
-            ->addOption('concurrency', 'c', InputOption::VALUE_REQUIRED, 'Number of files to process in parallel', '4');
+            ->addOption('concurrency', 'c', InputOption::VALUE_REQUIRED, 'Number of files to process in parallel', '4')
+            ->addOption('compression-level', 'p', InputOption::VALUE_REQUIRED, 'FLAC compression level (0-12)', '5')
+            ->addOption('sample-rate', 's', InputOption::VALUE_REQUIRED, 'Output sample rate in Hz (e.g., 44100, 48000)')
+            ->addOption('bit-depth', 'd', InputOption::VALUE_REQUIRED, 'Output bit depth (16 or 24)');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -35,6 +38,24 @@ class AudioProcessCommand extends Command
         $noiseReduction = $input->getOption('noise-reduction');
         $outputDir = $input->getOption('output-dir');
         $concurrency = (int) $input->getOption('concurrency');
+        $compressionLevel = (int) $input->getOption('compression-level');
+        $sampleRate = $input->getOption('sample-rate') ? (int) $input->getOption('sample-rate') : null;
+        $bitDepth = $input->getOption('bit-depth') ? (int) $input->getOption('bit-depth') : null;
+
+        if ($compressionLevel < 0 || $compressionLevel > 12) {
+            $output->writeln('<error>Error: Compression level must be an integer between 0 and 12.</error>');
+            return Command::FAILURE;
+        }
+
+        if ($sampleRate !== null && $sampleRate <= 0) {
+            $output->writeln('<error>Error: Sample rate must be a positive integer.</error>');
+            return Command::FAILURE;
+        }
+
+        if ($bitDepth !== null && $bitDepth !== 16 && $bitDepth !== 24) {
+            $output->writeln('<error>Error: Bit depth must be either 16 or 24.</error>');
+            return Command::FAILURE;
+        }
 
         // Resolve input files (supporting directories and wildcards/globs)
         $files = [];
@@ -71,6 +92,9 @@ class AudioProcessCommand extends Command
         $output->writeln(sprintf('<info>Files to process: </info>%d', count($files)));
         $output->writeln(sprintf('<info>Normalization:    </info>%s', $normalize ? "Enabled (Target: {$targetDb} LUFS/dB)" : "Disabled"));
         $output->writeln(sprintf('<info>Noise Reduction:  </info>%s', $noiseReduction ? "Enabled" : "Disabled"));
+        $output->writeln(sprintf('<info>Compression Level:</info>%d (0-12)', $compressionLevel));
+        $output->writeln(sprintf('<info>Sample Rate:      </info>%s', $sampleRate ? "{$sampleRate} Hz" : "Keep original"));
+        $output->writeln(sprintf('<info>Bit Depth:        </info>%s', $bitDepth ? "{$bitDepth}-bit" : "Keep original"));
         $output->writeln(sprintf('<info>Output Directory: </info>%s', $outputDir ?: "Same as input (suffixed with _processed)"));
         $output->writeln(sprintf('<info>Concurrency:      </info>%d', $concurrency));
         $output->writeln('');
@@ -111,13 +135,16 @@ class AudioProcessCommand extends Command
 
             $pool = new ProcessPool(
                 $tasks,
-                function (array $task) use ($processor, $normalize, $targetDb, $noiseReduction) {
+                function (array $task) use ($processor, $normalize, $targetDb, $noiseReduction, $compressionLevel, $sampleRate, $bitDepth) {
                     return $processor->createProcess(
                         $task['input'],
                         $task['output'],
                         $normalize,
                         $targetDb,
-                        $noiseReduction
+                        $noiseReduction,
+                        $compressionLevel,
+                        $sampleRate,
+                        $bitDepth
                     );
                 },
                 $concurrency

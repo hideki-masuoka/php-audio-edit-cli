@@ -62,22 +62,30 @@ php bin/audio-edit process <ファイルまたはディレクトリ...> [オプ�
 | `--normalize` | `-m` | なし | 音圧のノーマライズ処理（EBU R128規格）を有効にします。 |
 | `--target-db=VAL` | `-t` | `-14.0` | ノーマライズ時の目標音圧（LUFS/dB）。例：`--target-db=-16` |
 | `--noise-reduction`| `-r` | なし | ノイズ除去処理（FFT降ノイズ）を有効にします。 |
+| `--compression-level=VAL` | `-p` | `5` | FLACファイルの圧縮率。`0`（最低圧縮、最速）から `12`（最高圧縮、低速）の間で指定します。 |
+| `--sample-rate=VAL` | `-s` | 元のまま | 出力のサンプリングレート（Hz）を指定します。例：`--sample-rate=48000` |
+| `--bit-depth=VAL` | `-d` | 元のまま | 出力のビット深度を指定します。`16` または `24` が指定可能です。 |
 | `--output-dir=VAL` | `-o` | 入力元と同じ | 処理後のファイルを保存するディレクトリ。指定しない場合は、元ファイルと同じフォルダに `<元名前>_processed.flac` として保存されます。 |
 | `--concurrency=VAL`| `-c` | `4` | 同時に処理する最大ファイル数（並行スレッド数）。 |
 
 ### 💡 実行例
 
-#### 1. 単一ファイルをノイズ除去 & `-16 LUFS` にノーマライズ
+#### 1. 単一ファイルをノイズ除去 & `-16 LUFS` にノーマライズ & 圧縮率最大 (12) で保存
 ```bash
-php bin/audio-edit process song.flac --normalize --target-db=-16 --noise-reduction
+php bin/audio-edit process song.flac --normalize --target-db=-16 --noise-reduction --compression-level=12
 ```
 
-#### 2. ディレクトリ内のすべての FLAC ファイルを並行（2スレッド）でノイズ除去のみ実行
+#### 2. サンプリングレートを `48000Hz`、ビット深度を `24-bit` に変換してハイレゾ品質で書き出し
+```bash
+php bin/audio-edit process song.flac --sample-rate=48000 --bit-depth=24
+```
+
+#### 3. ディレクトリ内のすべての FLAC ファイルを並行（2スレッド）でノイズ除去のみ実行
 ```bash
 php bin/audio-edit process /path/to/audio/dir -r -c 2
 ```
 
-#### 3. 複数ファイルをまとめて処理して、別フォルダへ書き出す
+#### 4. 複数ファイルをまとめて処理して、別フォルダへ書き出す
 ```bash
 php bin/audio-edit process file1.flac file2.flac -m -o /path/to/output/
 ```
