@@ -15,8 +15,9 @@ FrankenPHP の Standalone モードを活用してビルドされた、Linux & W
   - 複数ファイルの直接指定、ディレクトリ内の `.flac` 全スキャン、ワイルドカード（`*.flac`）による一括指定にネイティブ対応。
 - **FFmpeg のゼロ・コンフィギュレーション（自動調達）**:
   - 実行環境のシステムに `ffmpeg` / `ffprobe` がない場合、実行OS（Linux/Windows/macOS）に最適な公式のスタティック・バイナリを自動的にバックグラウンドダウンロードします。
-- **FrankenPHP スタンドアロン**:
+- **static-php-cli (micro SAPI)**:
   - Docker 環境を利用して、PHPランタイムとアプリコードを1つのポータブルな実行ファイルにビルド可能。
+
 
 ---
 
@@ -92,7 +93,7 @@ php bin/audio-edit process file1.flac file2.flac -m -o /path/to/output/
 
 ---
 
-## 🐳 スタンドアロンバイナリのビルド (FrankenPHP)
+## 🐳 スタンドアロンバイナリのビルド (static-php-cli)
 
 Docker を用いて、Linux（x86_64）環境向けの単一実行可能ファイル `./audio-edit-cli` を作成します。
 
@@ -106,8 +107,9 @@ Docker を用いて、Linux（x86_64）環境向けの単一実行可能ファ�
 
 ### スタンドアロンでの実行例
 ```bash
-./audio-edit-cli php-cli bin/audio-edit process /path/to/audio/*.flac -m -r
+./audio-edit-cli process /path/to/audio/*.flac -m -r
 ```
+
 
 ---
 
@@ -124,8 +126,10 @@ Docker を用いて、Linux（x86_64）環境向けの単一実行可能ファ�
 │   │   └── ProcessPool.php    # カスタム並行プロセスプール
 │   └── Commands/
 │       └── AudioProcessCommand.php # Symfony Console コマンド定義
-├── build-standalone.sh     # FrankenPHPビルド自動化スクリプト
+├── box.json                # PHARビルド用 Box 設定ファイル
+├── build-standalone.sh     # static-php-cliビルド自動化スクリプト
 └── static-build.Dockerfile # スタンドアロンコンパイル用 Dockerfile
+
 ```
 
 ## 📄 ライセンス

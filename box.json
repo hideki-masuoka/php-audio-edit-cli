@@ -1,0 +1,22 @@
+{
+    "chmod": "0755",
+    "main": "bin/audio-edit",
+    "directories": [
+        "src"
+    ],
+    "files": [
+        "composer.json",
+        "composer.lock"
+    ],
+    "finder": [
+        {
+            "exclude": [
+                "Tests",
+                "tests",
+                "yaml"
+            ],
+            "in": "vendor"
+        }
+    ],
+    "output": "dist/audio-edit.phar"
+}

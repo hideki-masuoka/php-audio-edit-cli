@@ -32,4 +32,4 @@ phpstan.neon
 # Project binaries and dependencies
 /bin/ffmpeg-bin/
 /audio-edit-cli
-
+/dist/
