@@ -31,7 +31,8 @@ class ProcessPool
     public function run(
         callable $onStart,
         callable $onSuccess,
-        callable $onFailure
+        callable $onFailure,
+        ?callable $onProgress = null
     ): void {
         while (!empty($this->queue) || !empty($this->running)) {
             // Fill the running pool up to the allowed concurrency limit
@@ -59,7 +60,22 @@ class ProcessPool
                 $process = $active['process'];
                 $item = $active['item'];
 
+                if ($onProgress !== null && $process->isRunning()) {
+                    $inc = $process->getIncrementalErrorOutput();
+                    if ($inc !== '') {
+                        $onProgress($item, $inc);
+                    }
+                }
+
                 if (!$process->isRunning()) {
+                    // Check leftover output before removing
+                    if ($onProgress !== null) {
+                        $inc = $process->getIncrementalErrorOutput();
+                        if ($inc !== '') {
+                            $onProgress($item, $inc);
+                        }
+                    }
+
                     // Remove from running list
                     unset($this->running[$index]);
                     

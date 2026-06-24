@@ -105,5 +105,35 @@ class AudioProcessor
         // Create Symfony Process (disable timeout for long files)
         return new Process($cmd, null, null, null, null);
     }
+
+    /**
+     * Gets the duration of the audio file in seconds using ffprobe.
+     */
+    public function getDuration(string $inputFile): float
+    {
+        if (!file_exists($inputFile)) {
+            return 0.0;
+        }
+
+        $cmd = [
+            $this->ffprobePath,
+            '-v', 'error',
+            '-show_entries', 'format=duration',
+            '-of', 'default=noprint_wrappers=1:nokey=1',
+            $inputFile
+        ];
+
+        try {
+            $process = new Process($cmd, null, null, null, null);
+            $process->run();
+            if ($process->isSuccessful()) {
+                return (float) trim($process->getOutput());
+            }
+        } catch (\Exception $e) {
+            // Fallback to 0 if ffprobe fails or duration cannot be read
+        }
+
+        return 0.0;
+    }
 }
 

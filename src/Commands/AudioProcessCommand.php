@@ -164,9 +164,41 @@ class AudioProcessCommand extends Command
                 compressor: $compressor
             );
 
-            // Setup a progress bar
-            $progressBar = new ProgressBar($output, count($tasks));
-            $progressBar->start();
+            // 事前に各ファイルの長さを取得する（進捗計算のため）
+            $output->writeln('<comment>Analyzing audio durations...</comment>');
+            $durations = [];
+            foreach ($files as $file) {
+                $durations[$file] = $processor->getDuration($file);
+            }
+            $output->writeln('<info>Analysis complete. Starting processing...</info>');
+            $output->writeln('');
+
+            $useSections = method_exists($output, 'section');
+            $sections = [];
+
+            if ($useSections) {
+                foreach ($tasks as $idx => $task) {
+                    $sections[$task['input']] = [
+                        'section' => $output->section(),
+                        'index' => $idx + 1,
+                        'total' => count($tasks),
+                        'filename' => basename($task['input']),
+                        'status' => 'queued',
+                        'percent' => 0,
+                        'speed' => 'N/A'
+                    ];
+                    // 初期描画
+                    $sections[$task['input']]['section']->writeln(sprintf(
+                        '[%d/%d] <comment>%s</comment>: queued',
+                        $idx + 1,
+                        count($tasks),
+                        basename($task['input'])
+                    ));
+                }
+            } else {
+                $progressBar = new ProgressBar($output, count($tasks));
+                $progressBar->start();
+            }
 
             $pool = new ProcessPool(
                 $tasks,
@@ -181,20 +213,104 @@ class AudioProcessCommand extends Command
             );
 
             $pool->run(
-                function (array $task) use ($output, $progressBar) {
-                    // Optional: log when a process starts if not using progress bar,
-                    // but with progress bar we can just let it run or use sections.
+                function (array $task) use (&$sections, $useSections) {
+                    if ($useSections) {
+                        $input = $task['input'];
+                        $sec = $sections[$input];
+                        $sec['status'] = 'processing';
+                        $sections[$input] = $sec;
+                        
+                        $sec['section']->overwrite(sprintf(
+                            '[%d/%d] <info>%s</info>: 0%% [                              ]',
+                            $sec['index'],
+                            $sec['total'],
+                            $sec['filename']
+                        ));
+                    }
                 },
-                function (array $task) use ($progressBar) {
-                    $progressBar->advance();
+                function (array $task) use (&$sections, $useSections, $progressBar) {
+                    if ($useSections) {
+                        $input = $task['input'];
+                        $sec = $sections[$input];
+                        $sec['status'] = 'done';
+                        $sections[$input] = $sec;
+                        
+                        $sec['section']->overwrite(sprintf(
+                            '[%d/%d] <info>%s</info>: 100%% [==============================] <info>Done</info>',
+                            $sec['index'],
+                            $sec['total'],
+                            $sec['filename']
+                        ));
+                    } else {
+                        $progressBar->advance();
+                    }
                 },
-                function (array $task, string $error) use ($output, $progressBar) {
-                    $progressBar->advance();
-                    $output->writeln("\n<error>Failed to process " . basename($task['input']) . ": {$error}</error>");
+                function (array $task, string $error) use (&$sections, $useSections, $progressBar, $output) {
+                    if ($useSections) {
+                        $input = $task['input'];
+                        $sec = $sections[$input];
+                        $sec['status'] = 'failed';
+                        $sections[$input] = $sec;
+                        
+                        $sec['section']->overwrite(sprintf(
+                            '[%d/%d] <error>%s</error>: <error>Failed</error> (%s)',
+                            $sec['index'],
+                            $sec['total'],
+                            $sec['filename'],
+                            $error
+                        ));
+                    } else {
+                        $progressBar->advance();
+                        $output->writeln("\n<error>Failed to process " . basename($task['input']) . ": {$error}</error>");
+                    }
+                },
+                function (array $task, string $log) use (&$sections, $useSections, $durations) {
+                    if (!$useSections) {
+                        return;
+                    }
+                    $input = $task['input'];
+                    $sec = $sections[$input];
+                    $duration = $durations[$input] ?? 0.0;
+                    
+                    // time=00:00:10.50 のような記述を探す
+                    if ($duration > 0 && preg_match('/time=(\d+):(\d+):(\d+\.\d+)/', $log, $matches)) {
+                        $hours = (int)$matches[1];
+                        $minutes = (int)$matches[2];
+                        $seconds = (float)$matches[3];
+                        $currentTime = ($hours * 3600) + ($minutes * 60) + $seconds;
+                        
+                        $percent = min(100, max(0, (int)(($currentTime / $duration) * 100)));
+                        $sec['percent'] = $percent;
+                    }
+                    
+                    // speed= 1.5x のような記述を探す
+                    if (preg_match('/speed=\s*(\d+\.\d+x)/', $log, $matches)) {
+                        $sec['speed'] = $matches[1];
+                    }
+                    
+                    $sections[$input] = $sec;
+                    
+                    // プログレスバーを描画
+                    $barWidth = 30;
+                    $filledWidth = (int)($barWidth * ($sec['percent'] / 100));
+                    $emptyWidth = $barWidth - $filledWidth;
+                    $bar = str_repeat('=', $filledWidth) . ($filledWidth < $barWidth ? '>' : '') . str_repeat(' ', max(0, $emptyWidth - 1));
+                    
+                    $sec['section']->overwrite(sprintf(
+                        '[%d/%d] <info>%s</info>: %d%% [%s] (speed: %s)',
+                        $sec['index'],
+                        $sec['total'],
+                        $sec['filename'],
+                        $sec['percent'],
+                        $bar,
+                        $sec['speed']
+                    ));
                 }
             );
 
-            $progressBar->finish();
+            if (!$useSections) {
+                $progressBar->finish();
+            }
             $output->writeln("\n\n<info>Processing completed successfully!</info>");
 
         } catch (\Exception $e) {
