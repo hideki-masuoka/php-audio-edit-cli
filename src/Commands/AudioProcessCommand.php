@@ -10,6 +10,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Helper\ProgressBar;
 use App\Audio\FFmpegLocator;
 use App\Audio\AudioProcessor;
+use App\Audio\AudioProcessingOptions;
 use App\Audio\ProcessPool;
 
 class AudioProcessCommand extends Command
@@ -18,7 +19,7 @@ class AudioProcessCommand extends Command
     {
         $this
             ->setName('process')
-            ->setDescription('Process audio files (Normalize / Noise reduction)')
+            ->setDescription('Process audio files (Normalize / Noise reduction / Podcast optimization)')
             ->addArgument('files', InputArgument::IS_ARRAY | InputArgument::REQUIRED, 'Audio file(s) or directories to process')
             ->addOption('normalize', 'm', InputOption::VALUE_NONE, 'Enable loudness normalization')
             ->addOption('target-db', 't', InputOption::VALUE_REQUIRED, 'Target loudness in LUFS/dB', '-14.0')
@@ -27,7 +28,12 @@ class AudioProcessCommand extends Command
             ->addOption('concurrency', 'c', InputOption::VALUE_REQUIRED, 'Number of files to process in parallel', '4')
             ->addOption('compression-level', 'p', InputOption::VALUE_REQUIRED, 'FLAC compression level (0-12)', '5')
             ->addOption('sample-rate', 's', InputOption::VALUE_REQUIRED, 'Output sample rate in Hz (e.g., 44100, 48000)')
-            ->addOption('bit-depth', 'd', InputOption::VALUE_REQUIRED, 'Output bit depth (16 or 24)');
+            ->addOption('bit-depth', 'd', InputOption::VALUE_REQUIRED, 'Output bit depth (16 or 24)')
+            ->addOption('low-cut', 'l', InputOption::VALUE_NONE, 'Enable low-cut (high-pass) filter to reduce low-frequency rumble')
+            ->addOption('low-cut-freq', null, InputOption::VALUE_REQUIRED, 'Low-cut filter cutoff frequency in Hz', '80')
+            ->addOption('deesser', null, InputOption::VALUE_NONE, 'Enable de-esser to reduce vocal sibilance')
+            ->addOption('gate', 'g', InputOption::VALUE_NONE, 'Enable noise gate to mute background noise during silence')
+            ->addOption('compressor', null, InputOption::VALUE_NONE, 'Enable compressor to balance vocal dynamic range');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -41,6 +47,11 @@ class AudioProcessCommand extends Command
         $compressionLevel = (int) $input->getOption('compression-level');
         $sampleRate = $input->getOption('sample-rate') ? (int) $input->getOption('sample-rate') : null;
         $bitDepth = $input->getOption('bit-depth') ? (int) $input->getOption('bit-depth') : null;
+        $lowCut = $input->getOption('low-cut');
+        $lowCutFreq = (int) $input->getOption('low-cut-freq');
+        $deesser = $input->getOption('deesser');
+        $gate = $input->getOption('gate');
+        $compressor = $input->getOption('compressor');
 
         if ($compressionLevel < 0 || $compressionLevel > 12) {
             $output->writeln('<error>Error: Compression level must be an integer between 0 and 12.</error>');
@@ -54,6 +65,11 @@ class AudioProcessCommand extends Command
 
         if ($bitDepth !== null && $bitDepth !== 16 && $bitDepth !== 24) {
             $output->writeln('<error>Error: Bit depth must be either 16 or 24.</error>');
+            return Command::FAILURE;
+        }
+
+        if ($lowCutFreq <= 0) {
+            $output->writeln('<error>Error: Low-cut frequency must be a positive integer.</error>');
             return Command::FAILURE;
         }
 
@@ -92,6 +108,10 @@ class AudioProcessCommand extends Command
         $output->writeln(sprintf('<info>Files to process: </info>%d', count($files)));
         $output->writeln(sprintf('<info>Normalization:    </info>%s', $normalize ? "Enabled (Target: {$targetDb} LUFS/dB)" : "Disabled"));
         $output->writeln(sprintf('<info>Noise Reduction:  </info>%s', $noiseReduction ? "Enabled" : "Disabled"));
+        $output->writeln(sprintf('<info>Low-Cut Filter:    </info>%s', $lowCut ? "Enabled ({$lowCutFreq} Hz)" : "Disabled"));
+        $output->writeln(sprintf('<info>De-esser:          </info>%s', $deesser ? "Enabled" : "Disabled"));
+        $output->writeln(sprintf('<info>Noise Gate:        </info>%s', $gate ? "Enabled" : "Disabled"));
+        $output->writeln(sprintf('<info>Compressor:        </info>%s', $compressor ? "Enabled" : "Disabled"));
         $output->writeln(sprintf('<info>Compression Level:</info>%d (0-12)', $compressionLevel));
         $output->writeln(sprintf('<info>Sample Rate:      </info>%s', $sampleRate ? "{$sampleRate} Hz" : "Keep original"));
         $output->writeln(sprintf('<info>Bit Depth:        </info>%s', $bitDepth ? "{$bitDepth}-bit" : "Keep original"));
@@ -129,22 +149,32 @@ class AudioProcessCommand extends Command
                 ];
             }
 
+            // Setup options DTO
+            $options = new AudioProcessingOptions(
+                normalize: $normalize,
+                targetDb: $targetDb,
+                noiseReduction: $noiseReduction,
+                compressionLevel: $compressionLevel,
+                sampleRate: $sampleRate,
+                bitDepth: $bitDepth,
+                lowCut: $lowCut,
+                lowCutFrequency: $lowCutFreq,
+                deesser: $deesser,
+                gate: $gate,
+                compressor: $compressor
+            );
+
             // Setup a progress bar
             $progressBar = new ProgressBar($output, count($tasks));
             $progressBar->start();
 
             $pool = new ProcessPool(
                 $tasks,
-                function (array $task) use ($processor, $normalize, $targetDb, $noiseReduction, $compressionLevel, $sampleRate, $bitDepth) {
+                function (array $task) use ($processor, $options) {
                     return $processor->createProcess(
                         $task['input'],
                         $task['output'],
-                        $normalize,
-                        $targetDb,
-                        $noiseReduction,
-                        $compressionLevel,
-                        $sampleRate,
-                        $bitDepth
+                        $options
                     );
                 },
                 $concurrency
@@ -175,6 +205,7 @@ class AudioProcessCommand extends Command
         return Command::SUCCESS;
     }
 }
+
 
 
 

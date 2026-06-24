@@ -63,6 +63,11 @@ php bin/audio-edit process <ファイルまたはディレクトリ...> [オプ�
 | `--normalize` | `-m` | なし | 音圧のノーマライズ処理（EBU R128規格）を有効にします。 |
 | `--target-db=VAL` | `-t` | `-14.0` | ノーマライズ時の目標音圧（LUFS/dB）。例：`--target-db=-16` |
 | `--noise-reduction`| `-r` | なし | ノイズ除去処理（FFT降ノイズ）を有効にします。 |
+| `--low-cut` | `-l` | なし | ローカット（ハイパス）フィルタを有効にし、エアコンなどの低域雑音をカットします。 |
+| `--low-cut-freq=VAL`| なし | `80` | ローカットの遮断周波数（Hz）。 |
+| `--deesser` | なし | なし | ディエッサーを有効にし、サ行の耳障りな高音ノイズを軽減します。 |
+| `--gate` | `-g` | なし | ノイズゲートを有効にし、無音時の環境ノイズをシャットアウトします。 |
+| `--compressor` | なし | なし | コンプレッサーを有効にし、声の音量のばらつきを抑えて聞き取りやすくします。 |
 | `--compression-level=VAL` | `-p` | `5` | FLACファイルの圧縮率。`0`（最低圧縮、最速）から `12`（最高圧縮、低速）の間で指定します。 |
 | `--sample-rate=VAL` | `-s` | 元のまま | 出力のサンプリングレート（Hz）を指定します。例：`--sample-rate=48000` |
 | `--bit-depth=VAL` | `-d` | 元のまま | 出力のビット深度を指定します。`16` または `24` が指定可能です。 |
@@ -71,9 +76,9 @@ php bin/audio-edit process <ファイルまたはディレクトリ...> [オプ�
 
 ### 💡 実行例
 
-#### 1. 単一ファイルをノイズ除去 & `-16 LUFS` にノーマライズ & 圧縮率最大 (12) で保存
+#### 1. 単一ファイルをノイズ除去 & ポッドキャスト向け最適化 (ローカット、ディエッサー、ゲート、コンプレッサー) & `-16 LUFS` にノーマライズ
 ```bash
-php bin/audio-edit process song.flac --normalize --target-db=-16 --noise-reduction --compression-level=12
+php bin/audio-edit process talk.flac --normalize --target-db=-16 --noise-reduction --low-cut --deesser --gate --compressor
 ```
 
 #### 2. サンプリングレートを `48000Hz`、ビット深度を `24-bit` に変換してハイレゾ品質で書き出し

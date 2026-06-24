@@ -23,12 +23,7 @@ class AudioProcessor
     public function createProcess(
         string $inputFile,
         string $outputFile,
-        bool $normalize,
-        float $targetDb,
-        bool $noiseReduction,
-        ?int $compressionLevel = null,
-        ?int $sampleRate = null,
-        ?int $bitDepth = null
+        AudioProcessingOptions $options
     ): Process {
         // Ensure input file exists
         if (!file_exists($inputFile)) {
@@ -43,16 +38,36 @@ class AudioProcessor
 
         $filters = [];
 
-        // 1. Noise reduction first
-        if ($noiseReduction) {
+        // 1. Low-cut (High-pass) filter to remove low-frequency rumble first
+        if ($options->lowCut) {
+            $filters[] = "highpass=f={$options->lowCutFrequency}";
+        }
+
+        // 2. Noise Gate to mute background noise during silence
+        if ($options->gate) {
+            $filters[] = "agate=threshold=-40dB:ratio=2:range=0.01";
+        }
+
+        // 3. De-esser to reduce sibilance ("s", "t" sounds)
+        if ($options->deesser) {
+            $filters[] = "deesser=i=0.5:f=0.5:m=0.5:s=o";
+        }
+
+        // 4. Noise reduction
+        if ($options->noiseReduction) {
             // afftdn is a very powerful FFT-based denoise filter in FFmpeg
             $filters[] = 'afftdn';
         }
 
-        // 2. Loudness normalization (EBU R128 standard)
-        if ($normalize) {
+        // 5. Compressor to balance dynamic range of vocals
+        if ($options->compressor) {
+            $filters[] = "acompressor=threshold=-20dB:ratio=4:attack=20:release=200:makeup=2";
+        }
+
+        // 6. Loudness normalization (EBU R128 standard)
+        if ($options->normalize) {
             // loudnorm params: I = Integrated loudness, TP = True Peak, LRA = Loudness Range
-            $filters[] = "loudnorm=I={$targetDb}:TP=-1.5:LRA=11";
+            $filters[] = "loudnorm=I={$options->targetDb}:TP=-1.5:LRA=11";
         }
 
         $cmd = [
@@ -67,21 +82,21 @@ class AudioProcessor
         }
 
         // Add FLAC compression level if specified
-        if ($compressionLevel !== null) {
+        if ($options->compressionLevel !== null) {
             $cmd[] = '-compression_level';
-            $cmd[] = (string) $compressionLevel;
+            $cmd[] = (string) $options->compressionLevel;
         }
 
         // Add sample rate if specified
-        if ($sampleRate !== null) {
+        if ($options->sampleRate !== null) {
             $cmd[] = '-ar';
-            $cmd[] = (string) $sampleRate;
+            $cmd[] = (string) $options->sampleRate;
         }
 
         // Add bit depth if specified (16-bit or 24-bit)
-        if ($bitDepth !== null) {
+        if ($options->bitDepth !== null) {
             $cmd[] = '-sample_fmt';
-            $cmd[] = $bitDepth === 24 ? 's32' : 's16';
+            $cmd[] = $options->bitDepth === 24 ? 's32' : 's16';
         }
 
         // Output file
@@ -91,3 +106,4 @@ class AudioProcessor
         return new Process($cmd, null, null, null, null);
     }
 }
+
