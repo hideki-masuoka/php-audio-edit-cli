@@ -5,10 +5,12 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use Symfony\Component\Console\Application;
 use App\Commands\AudioProcessCommand;
+use App\Commands\AudioRestoreCommand;
 
 $application = new Application('Audio Edit CLI', '1.0.0');
 
-// Register our main command
+// Register our commands
 $application->add(new AudioProcessCommand());
+$application->add(new AudioRestoreCommand());
 
 $application->run();
